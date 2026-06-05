@@ -3,6 +3,7 @@ import SwiftUI
 struct CompetitorListView: View {
     @Environment(AppState.self) private var appState
     @State private var showMap = false
+    @State private var showManage = false
     @State private var selectedCompetitor: Competitor?
     @State private var animateAppear = false
 
@@ -36,6 +37,26 @@ struct CompetitorListView: View {
                     .sensoryFeedback(.impact(weight: .light), trigger: selectedCompetitor?.id)
                     .staggeredAppear(index: index + 1, appear: animateAppear)
                 }
+
+                Button {
+                    showManage = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus.circle.fill")
+                        Text(appState.competitors.isEmpty ? "Add Competitors" : "Add or Manage Competitors")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(RevOwlTheme.gold.opacity(0.15), in: .rect(cornerRadius: 16))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .strokeBorder(RevOwlTheme.gold.opacity(0.3), lineWidth: 0.5)
+                    )
+                    .foregroundStyle(RevOwlTheme.gold)
+                }
+                .sensoryFeedback(.selection, trigger: showManage)
+                .staggeredAppear(index: appState.competitors.count + 1, appear: animateAppear)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 32)
@@ -53,12 +74,27 @@ struct CompetitorListView: View {
                 .foregroundStyle(RevOwlTheme.gold)
                 .sensoryFeedback(.selection, trigger: showMap)
             }
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Add", systemImage: "plus.circle.fill") {
+                    showManage = true
+                }
+                .foregroundStyle(RevOwlTheme.gold)
+                .sensoryFeedback(.selection, trigger: showManage)
+            }
         }
         .sheet(isPresented: $showMap) {
             NavigationStack {
                 CompetitorMapView()
             }
             .presentationDetents([.large])
+        }
+        .sheet(isPresented: $showManage) {
+            NavigationStack {
+                CompetitorManagementView()
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationContentInteraction(.scrolls)
         }
         .sheet(item: $selectedCompetitor) { competitor in
             NavigationStack {
