@@ -6,6 +6,7 @@ struct SettingsView: View {
     @State private var showDemandSignals = false
     @State private var showNotificationSettings = false
     @State private var showHotelProfile = false
+    @State private var showCompetitorManagement = false
     @State private var showSignOutConfirmation = false
     @State private var isRestoringPurchases = false
     @State private var showRestoreResult = false
@@ -73,7 +74,22 @@ struct SettingsView: View {
                         glassDivider
                         settingsInfoRow(icon: "arrow.clockwise", title: "Rate Refresh", value: appState.currentTier.refreshInterval)
                         glassDivider
-                        settingsInfoRow(icon: "building.2", title: "Competitors", value: "\(appState.competitors.count)/\(appState.currentTier.competitorLimit)")
+                        Button {
+                            showCompetitorManagement = true
+                        } label: {
+                            HStack {
+                                Label("Competitors", systemImage: "building.2")
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Text("\(appState.competitors.count)/\(appState.currentTier.competitorLimit)")
+                                    .foregroundStyle(.secondary)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .padding(14)
+                        }
+                        .sensoryFeedback(.selection, trigger: showCompetitorManagement)
                         glassDivider
                         settingsInfoRow(icon: "clock", title: "History", value: "\(appState.currentTier.historyDays) days")
                     }
@@ -265,6 +281,14 @@ struct SettingsView: View {
         .sheet(isPresented: $showHotelProfile) {
             NavigationStack {
                 HotelProfileView()
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationContentInteraction(.scrolls)
+        }
+        .sheet(isPresented: $showCompetitorManagement) {
+            NavigationStack {
+                CompetitorManagementView()
             }
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)

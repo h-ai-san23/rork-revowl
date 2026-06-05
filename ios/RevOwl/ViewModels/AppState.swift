@@ -207,6 +207,51 @@ class AppState {
         rateDisplayMode = rateDisplayMode == .perRoomType ? .average : .perRoomType
     }
 
+    // MARK: - Competitor Management
+
+    /// Adds a discovered competitor, resolves its rate source key, and refreshes data.
+    /// Returns false if the competitor already exists or the tier limit is reached.
+    @discardableResult
+    func addCompetitor(_ discovered: DiscoveredCompetitor) async -> Bool {
+        let exists = competitors.contains { existing in
+            existing.name.caseInsensitiveCompare(discovered.name) == .orderedSame
+                || (abs(existing.latitude - discovered.latitude) < 0.0005
+                    && abs(existing.longitude - discovered.longitude) < 0.0005)
+        }
+        guard !exists else { return false }
+        guard competitors.count < currentTier.competitorLimit else { return false }
+
+        let newCompetitor = Competitor(
+            name: discovered.name,
+            latitude: discovered.latitude,
+            longitude: discovered.longitude,
+            distance: discovered.distance,
+            address: discovered.address
+        )
+        competitors.append(newCompetitor)
+        persistData()
+
+        isResolvingKeys = true
+        let resolved = await rateService.resolveXoteloKeys(for: competitors)
+        competitors = resolved
+        isResolvingKeys = false
+        persistData()
+
+        await refreshRates()
+        updateDemandSignalsFromCompetitors()
+        regenerateRecommendations()
+        persistData()
+        return true
+    }
+
+    /// Removes a competitor and refreshes derived signals.
+    func removeCompetitor(_ id: String) {
+        competitors.removeAll { $0.id == id }
+        updateDemandSignalsFromCompetitors()
+        regenerateRecommendations()
+        persistData()
+    }
+
     func resolveCompetitorKeysAndRefresh() async {
         isResolvingKeys = true
 
