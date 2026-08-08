@@ -21,7 +21,8 @@ nonisolated struct XoteloRate: Codable, Sendable {
     let code: String
     let name: String
     let rate: Double
-    let tax: Double
+    /// Xotelo may return `null` for tax — must stay optional or decoding fails for the whole response.
+    let tax: Double?
 }
 
 nonisolated struct XoteloListResponse: Codable, Sendable {
@@ -789,7 +790,7 @@ class RateService {
                             otaRates.append(OTARateInfo(
                                 otaName: displayName,
                                 rate: xRate.rate,
-                                tax: xRate.tax,
+                                tax: xRate.tax ?? 0,
                                 roomType: "Standard"
                             ))
                         }
@@ -842,7 +843,7 @@ class RateService {
 
         let baseOTARates = xoteloRates.compactMap { xRate -> (String, Double, Double)? in
             let displayName = Self.otaCodeToName[xRate.code] ?? xRate.name
-            return (displayName, xRate.rate, xRate.tax)
+            return (displayName, xRate.rate, xRate.tax ?? 0)
         }
 
         return hotel.roomTypes.map { roomType in
