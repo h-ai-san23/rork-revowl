@@ -2,7 +2,9 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(StoreViewModel.self) private var store
     @State private var showSubscription = false
+    @State private var showCreditsStore = false
     @State private var showDemandSignals = false
     @State private var showNotificationSettings = false
     @State private var showHotelProfile = false
@@ -145,11 +147,32 @@ struct SettingsView: View {
                 settingsSection(title: "Purchases") {
                     VStack(spacing: 0) {
                         Button {
+                            showCreditsStore = true
+                        } label: {
+                            HStack {
+                                Label("Credits", systemImage: "sparkles.rectangle.stack.fill")
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Text("\(store.creditsBalance)")
+                                    .foregroundStyle(RevOwlTheme.gold)
+                                    .fontWeight(.semibold)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .padding(14)
+                        }
+                        .sensoryFeedback(.selection, trigger: showCreditsStore)
+
+                        glassDivider
+
+                        Button {
                             isRestoringPurchases = true
                             Task {
-                                await appState.restorePurchases()
+                                await store.restore()
                                 isRestoringPurchases = false
-                                restoreResultMessage = "Purchases restored. Current plan: \(appState.currentTier.displayName)"
+                                restoreResultMessage = store.errorMessage ?? "Purchases restored. Current plan: \(appState.currentTier.displayName)"
+                                store.errorMessage = nil
                                 showRestoreResult = true
                             }
                         } label: {
@@ -261,6 +284,14 @@ struct SettingsView: View {
             NavigationStack {
                 SubscriptionView()
             }
+        }
+        .sheet(isPresented: $showCreditsStore) {
+            NavigationStack {
+                CreditsStoreView()
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationContentInteraction(.scrolls)
         }
         .sheet(isPresented: $showDemandSignals) {
             NavigationStack {
