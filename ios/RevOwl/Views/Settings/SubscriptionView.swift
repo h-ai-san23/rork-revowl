@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SubscriptionView: View {
     @Environment(AppState.self) private var appState
+    @Environment(StoreViewModel.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTier: SubscriptionTier = .pro
 
@@ -33,18 +34,27 @@ struct SubscriptionView: View {
 
                 VStack(spacing: 12) {
                     Button {
-                        dismiss()
+                        handleSubscribe()
                     } label: {
-                        Text("Start 7-Day Free Trial")
+                        if store.isPurchasing {
+                            ProgressView()
+                                .tint(.black)
+                        } else {
+                            Text(ctaTitle)
+                        }
                     }
                     .buttonStyle(GoldButtonStyle())
+                    .disabled(store.isPurchasing || (selectedTier == store.entitledTier && selectedTier != .scout))
                     .sensoryFeedback(.impact(weight: .medium), trigger: selectedTier)
 
-                    Button("Restore Purchases") {}
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    Button("Restore Purchases") {
+                        Task { await store.restore() }
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .disabled(store.isRestoring)
 
-                    Text("Cancel anytime. No commitment.")
+                    Text("Billed monthly. Cancel anytime in Settings.")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
@@ -59,6 +69,40 @@ struct SubscriptionView: View {
                 Button("Done") { dismiss() }
                     .foregroundStyle(RevOwlTheme.gold)
             }
+        }
+        .task {
+            if store.offerings == nil {
+                await store.fetchOfferings()
+            }
+        }
+        .alert("Error", isPresented: errorBinding) {
+            Button("OK") { store.errorMessage = nil }
+        } message: {
+            Text(store.errorMessage ?? "")
+        }
+    }
+
+    private var errorBinding: Binding<Bool> {
+        Binding(
+            get: { store.errorMessage != nil },
+            set: { if !$0 { store.errorMessage = nil } }
+        )
+    }
+
+    private var ctaTitle: String {
+        if selectedTier == .scout { return "Continue with Free Plan" }
+        if selectedTier == store.entitledTier { return "Current Plan" }
+        return "Subscribe — \(store.priceText(for: selectedTier))"
+    }
+
+    private func handleSubscribe() {
+        if selectedTier == .scout {
+            dismiss()
+            return
+        }
+        Task {
+            let success = await store.purchase(tier: selectedTier)
+            if success { dismiss() }
         }
     }
 
@@ -91,7 +135,7 @@ struct SubscriptionView: View {
 
                 Spacer()
 
-                Text(tier.price)
+                Text(store.priceText(for: tier))
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(isSelected ? RevOwlTheme.gold : .primary)
 

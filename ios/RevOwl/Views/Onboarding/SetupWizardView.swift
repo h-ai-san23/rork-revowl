@@ -33,6 +33,12 @@ struct SetupWizardView: View {
     @State private var searchCompleter = AddressSearchCompleter()
     @State private var showAddressSuggestions: Bool = false
 
+    @State private var hotelSuggestions: [HotelSuggestion] = []
+    @State private var isSearchingHotels: Bool = false
+    @State private var showHotelSuggestions: Bool = false
+    @State private var hotelSearchTask: Task<Void, Never>? = nil
+    @State private var didPickHotel: Bool = false
+
     @FocusState private var focusedField: SetupField?
 
     private let totalSteps = 6
@@ -137,17 +143,81 @@ struct SetupWizardView: View {
                     Text("Hotel Name")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.white.opacity(0.85))
-                    TextField("e.g. The Coastal Inn", text: $hotelName)
-                        .textContentType(.organizationName)
-                        .focused($focusedField, equals: .hotelName)
-                        .submitLabel(.next)
-                        .onSubmit { focusedField = .hotelAddress }
-                        .padding(14)
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.white.opacity(0.5))
+                        TextField("Search for your hotel...", text: $hotelName)
+                            .textContentType(.organizationName)
+                            .autocorrectionDisabled()
+                            .focused($focusedField, equals: .hotelName)
+                            .submitLabel(.next)
+                            .onSubmit { focusedField = .hotelAddress }
+                        if isSearchingHotels {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(RevOwlTheme.gold)
+                        }
+                    }
+                    .padding(14)
+                    .background(.ultraThinMaterial, in: .rect(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(.white.opacity(0.08), lineWidth: 0.5)
+                    )
+                    .onChange(of: hotelName) { _, newValue in
+                        if didPickHotel {
+                            didPickHotel = false
+                            return
+                        }
+                        scheduleHotelSearch(query: newValue)
+                    }
+
+                    if showHotelSuggestions && !hotelSuggestions.isEmpty {
+                        VStack(spacing: 0) {
+                            ForEach(hotelSuggestions) { suggestion in
+                                Button {
+                                    pickHotel(suggestion)
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "building.2.fill")
+                                            .font(.subheadline)
+                                            .foregroundStyle(RevOwlTheme.gold)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(suggestion.name)
+                                                .font(.subheadline)
+                                                .foregroundStyle(.white)
+                                                .lineLimit(1)
+                                            if !suggestion.address.isEmpty {
+                                                Text(suggestion.address)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.white.opacity(0.65))
+                                                    .lineLimit(1)
+                                            }
+                                        }
+                                        Spacer()
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 10)
+                                }
+                                if suggestion.id != hotelSuggestions.last?.id {
+                                    Rectangle()
+                                        .fill(.white.opacity(0.05))
+                                        .frame(height: 0.5)
+                                        .padding(.leading, 14)
+                                }
+                            }
+                        }
                         .background(.ultraThinMaterial, in: .rect(cornerRadius: 12))
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
                                 .strokeBorder(.white.opacity(0.08), lineWidth: 0.5)
                         )
+                    }
+
+                    Text("Type your hotel's name and pick it from the list — we'll fill in the address and link it to live rate data automatically.")
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.55))
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -296,7 +366,80 @@ struct SetupWizardView: View {
         .scrollDismissesKeyboard(.interactively)
     }
 
+    private func pickHotel(_ suggestion: HotelSuggestion) {
+        didPickHotel = true
+        hotelSearchTask?.cancel()
+        hotelName = suggestion.name
+        if !suggestion.address.isEmpty {
+            hotelAddress = suggestion.address
+        }
+        hotelCoordinate = CLLocationCoordinate2D(latitude: suggestion.latitude, longitude: suggestion.longitude)
+        hotelSuggestions = []
+        showHotelSuggestions = false
+        showAddressSuggestions = false
+        addressSuggestions = []
+        searchCompleter.search(query: "")
+        focusedField = nil
+    }
+
+    private func scheduleHotelSearch(query: String) {
+        hotelSearchTask?.cancel()
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        guard trimmed.count >= 3 else {
+            hotelSuggestions = []
+            showHotelSuggestions = false
+            isSearchingHotels = false
+            return
+        }
+        hotelSearchTask = Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            if Task.isCancelled { return }
+            await performHotelSearch(query: trimmed)
+        }
+    }
+
+    private func performHotelSearch(query: String) async {
+        isSearchingHotels = true
+        defer { isSearchingHotels = false }
+
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = "\(query) hotel"
+        request.pointOfInterestFilter = MKPointOfInterestFilter(including: [.hotel])
+
+        do {
+            let response = try await MKLocalSearch(request: request).start()
+            if Task.isCancelled { return }
+            let results: [HotelSuggestion] = response.mapItems.compactMap { item in
+                guard let name = item.name else { return nil }
+                let coord = item.placemark.coordinate
+                let address = [
+                    item.placemark.subThoroughfare, item.placemark.thoroughfare,
+                    item.placemark.locality, item.placemark.administrativeArea,
+                ]
+                .compactMap { $0 }
+                .joined(separator: ", ")
+                return HotelSuggestion(
+                    name: name,
+                    address: address,
+                    latitude: coord.latitude,
+                    longitude: coord.longitude
+                )
+            }
+            hotelSuggestions = Array(results.prefix(6))
+            showHotelSuggestions = !hotelSuggestions.isEmpty
+        } catch {
+            if !Task.isCancelled {
+                hotelSuggestions = []
+                showHotelSuggestions = false
+            }
+        }
+    }
+
     private func prefillDemoHotel() {
+        didPickHotel = true
+        hotelSearchTask?.cancel()
+        hotelSuggestions = []
+        showHotelSuggestions = false
         hotelName = "The Coastal Inn"
         hotelAddress = "123 Ocean Drive, Miami Beach, FL"
         totalRooms = "86"
@@ -460,14 +603,24 @@ struct SetupWizardView: View {
                         Text("\(discoveredCompetitors.count) nearby hotels found")
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.8))
+                        Spacer()
+                        Text("\(selectedCompetitors.count)/\(appState.currentTier.competitorLimit)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(RevOwlTheme.gold)
                     }
+
+                    Text("Your \(appState.currentTier.displayName) plan tracks up to \(appState.currentTier.competitorLimit) competitor\(appState.currentTier.competitorLimit == 1 ? "" : "s"). Upgrade anytime in Settings.")
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.6))
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
                     ForEach(discoveredCompetitors) { comp in
                         let isSelected = selectedCompetitors.contains(comp.id)
+                        let atLimit = selectedCompetitors.count >= appState.currentTier.competitorLimit
                         Button {
                             if isSelected {
                                 selectedCompetitors.remove(comp.id)
-                            } else {
+                            } else if !atLimit {
                                 selectedCompetitors.insert(comp.id)
                             }
                         } label: {
@@ -506,6 +659,7 @@ struct SetupWizardView: View {
                             )
                         }
                         .buttonStyle(GlassPressButtonStyle())
+                        .opacity(!isSelected && atLimit ? 0.45 : 1)
                         .sensoryFeedback(.selection, trigger: selectedCompetitors.count)
                     }
                 }
@@ -524,7 +678,12 @@ struct SetupWizardView: View {
         discoveredCompetitors = []
         selectedCompetitors = []
 
-        let coordinate = await geocodeAddress(hotelAddress)
+        let coordinate: CLLocationCoordinate2D?
+        if let existing = hotelCoordinate {
+            coordinate = existing
+        } else {
+            coordinate = await geocodeAddress(hotelAddress)
+        }
         hotelCoordinate = coordinate
 
         guard let coord = coordinate else {
@@ -895,7 +1054,11 @@ struct SetupWizardView: View {
             registrationId: regId
         )
 
-        let selectedDiscovered = discoveredCompetitors.filter { selectedCompetitors.contains($0.id) }
+        let selectedDiscovered = Array(
+            discoveredCompetitors
+                .filter { selectedCompetitors.contains($0.id) }
+                .prefix(appState.currentTier.competitorLimit)
+        )
         let newCompetitors = selectedDiscovered.map { disc in
             Competitor(
                 name: disc.name,
@@ -924,6 +1087,22 @@ struct SetupWizardView: View {
         )
 
         onComplete()
+    }
+}
+
+nonisolated struct HotelSuggestion: Identifiable, Sendable {
+    let id: String
+    let name: String
+    let address: String
+    let latitude: Double
+    let longitude: Double
+
+    init(name: String, address: String, latitude: Double, longitude: Double) {
+        self.id = "\(name)-\(latitude)-\(longitude)"
+        self.name = name
+        self.address = address
+        self.latitude = latitude
+        self.longitude = longitude
     }
 }
 

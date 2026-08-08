@@ -15,7 +15,8 @@ class AppState {
     var eventsErrorMessage: String? = nil
     var occupancyEntries: [OccupancyEntry] = []
     var hotelRates: [HotelRateEntry] = []
-    var currentTier: SubscriptionTier = .pro
+    /// Synced from StoreViewModel entitlements (see ContentView). Scout when no subscription is active.
+    var currentTier: SubscriptionTier = .scout
     var isRefreshingRates: Bool = false
     var lastRateRefresh: Date = .now
     var rateDisplayMode: RateDisplayMode = .perRoomType
@@ -458,11 +459,6 @@ class AppState {
         defaults.set(false, forKey: "hasCompletedOnboarding")
         defaults.set(false, forKey: "hasCompletedSetup")
         clearPersistedData()
-    }
-
-    func restorePurchases() async {
-        try? await Task.sleep(for: .seconds(1.5))
-        currentTier = .pro
     }
 
     func regenerateRecommendations() {

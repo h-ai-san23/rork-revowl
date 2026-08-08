@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(AppState.self) private var appState
+    @Environment(StoreViewModel.self) private var store
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("hasCompletedSetup") private var hasCompletedSetup = false
 
@@ -24,6 +25,9 @@ struct ContentView: View {
             } else {
                 MainTabView()
             }
+        }
+        .onChange(of: store.entitledTier, initial: true) { _, tier in
+            appState.currentTier = tier
         }
         .onChange(of: appState.hasCompletedOnboarding) { _, newValue in
             if !newValue {
