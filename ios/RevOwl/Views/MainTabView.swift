@@ -1,43 +1,28 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @Environment(AppState.self) private var appState
-    @State private var selectedTab: Int = 0
+    @Environment(AppModel.self) private var app
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            Tab("Dashboard", systemImage: "chart.bar.fill", value: 0) {
-                NavigationStack {
-                    DashboardView()
-                }
+        @Bindable var app = app
+        TabView(selection: $app.selectedTab) {
+            Tab("Today", systemImage: "sun.horizon", value: AppTab.today) {
+                NavigationStack { TodayView() }
             }
-
-            Tab("Competitors", systemImage: "building.2.fill", value: 1) {
-                NavigationStack {
-                    CompetitorListView()
-                }
+            Tab("Market", systemImage: "chart.xyaxis.line", value: AppTab.market) {
+                NavigationStack { MarketView() }
             }
-
-            Tab("Dynamic Rates", systemImage: "sparkles", value: 2) {
-                NavigationStack {
-                    RecommendationsView()
-                }
+            Tab("Calendar", systemImage: "calendar", value: AppTab.calendar) {
+                NavigationStack { CalendarView() }
             }
-
-            Tab("Alerts", systemImage: "bell.fill", value: 3) {
-                NavigationStack {
-                    AlertsView()
-                }
-                .badge(appState.unreadAlertCount)
+            Tab("Ask Orev", systemImage: "bubble.left.and.text.bubble.right", value: AppTab.ask) {
+                NavigationStack { AskView() }
             }
-
-            Tab("Settings", systemImage: "gearshape.fill", value: 4) {
-                NavigationStack {
-                    SettingsView()
-                }
+            Tab("Property", systemImage: "building.2", value: AppTab.property) {
+                NavigationStack { PropertyView() }
             }
         }
-        .tint(RevOwlTheme.gold)
-        .sensoryFeedback(.selection, trigger: selectedTab)
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .sensoryFeedback(.selection, trigger: app.selectedTab)
     }
 }

@@ -2,172 +2,113 @@ import Foundation
 import Observation
 import RevenueCat
 
-/// Manages RevenueCat offerings, subscription entitlements, and the consumable credits purchase flow.
+/// RevenueCat purchases. Subscriptions belong to a property: the RevenueCat app user id is
+/// the property id, and the backend re-verifies entitlements with RevenueCat.
 @Observable
 @MainActor
 final class StoreViewModel {
-    var offerings: Offerings?
-    /// Tier derived from active RevenueCat entitlements. Scout when nothing is active.
-    var entitledTier: SubscriptionTier = .scout
-    var creditsBalance: Int = UserDefaults.standard.integer(forKey: StoreViewModel.creditsBalanceKey)
-    var isLoading: Bool = false
-    var isPurchasing: Bool = false
-    var isRestoring: Bool = false
+    var offering: Offering?
+    var isLoading = false
+    var purchasingPlanId: String?
+    var isRestoring = false
     var errorMessage: String?
-    var lastGrantedCredits: Int?
+    /// Product id → eligible for the introductory free trial (StoreKit-determined).
+    var introEligible: [String: Bool] = [:]
+    private(set) var activePropertyId: String?
 
-    /// Credits granted per $1 pack purchase.
-    static let creditsPerPack = 100
-
-    private static let creditsBalanceKey = "creditsBalance"
-
-    init() {
-        Task { await fetchOfferings() }
-        Task { await refreshEntitlements() }
-        Task { await listenForCustomerInfo() }
-    }
-
-    // MARK: - Offerings
-
-    /// The $1 credits package from the "credits" offering.
-    var creditsPackage: Package? {
-        offerings?.offering(identifier: "credits")?.availablePackages.first
-    }
-
-    /// The monthly subscription package for a paid tier from the "plans" offering.
-    func package(for tier: SubscriptionTier) -> Package? {
-        guard let plans = offerings?.offering(identifier: "plans") else { return nil }
-        switch tier {
-        case .scout: return nil
-        case .growth: return plans.package(identifier: "growth_monthly")
-        case .pro: return plans.package(identifier: "pro_monthly")
+    func activate(propertyId: String?) async {
+        guard let propertyId, propertyId != activePropertyId else { return }
+        do {
+            _ = try await Purchases.shared.logIn(propertyId)
+            activePropertyId = propertyId
+        } catch {
+            errorMessage = "The App Store connection isn't ready yet. Plans may take a moment to load."
         }
+        await loadOfferings()
     }
 
-    /// Localized store price for a tier, falling back to the static display price.
-    func priceText(for tier: SubscriptionTier) -> String {
-        guard tier != .scout else { return "Free" }
-        if let localized = package(for: tier)?.storeProduct.localizedPriceString {
-            return "\(localized)/mo"
-        }
-        return tier.price
+    func deactivate() async {
+        guard activePropertyId != nil else { return }
+        activePropertyId = nil
+        _ = try? await Purchases.shared.logOut()
     }
 
-    func fetchOfferings() async {
+    func loadOfferings() async {
         isLoading = true
         defer { isLoading = false }
         do {
-            offerings = try await Purchases.shared.offerings()
+            let offerings = try await Purchases.shared.offerings()
+            offering = offerings.offering(identifier: "hotel_plans") ?? offerings.current
+            let ids = offering?.availablePackages.map { $0.storeProduct.productIdentifier } ?? []
+            if !ids.isEmpty {
+                let result = await Purchases.shared.checkTrialOrIntroDiscountEligibility(productIdentifiers: ids)
+                introEligible = result.mapValues { $0.status == .eligible }
+            }
         } catch {
-            errorMessage = "Couldn't load products. Check your connection and try again."
-            print("[Store] Failed to fetch offerings: \(error.localizedDescription)")
+            errorMessage = "Plans couldn't be loaded from the App Store. Please try again."
         }
     }
 
-    // MARK: - Entitlements
+    func package(for planId: String) -> Package? {
+        guard let offering else { return nil }
+        return offering.package(identifier: "\(planId)_monthly")
+            ?? offering.availablePackages.first { $0.storeProduct.productIdentifier.hasPrefix("revowl_\(planId)") }
+    }
 
-    private func listenForCustomerInfo() async {
-        for await info in Purchases.shared.customerInfoStream {
-            applyEntitlements(info)
+    /// True when StoreKit reports a free-trial intro offer the user can still redeem.
+    func offersTrial(_ planId: String, serverTrialUsed: Bool) -> Bool {
+        guard !serverTrialUsed, let product = package(for: planId)?.storeProduct,
+              let intro = product.introductoryDiscount, intro.paymentMode == .freeTrial else { return false }
+        return introEligible[product.productIdentifier] ?? false
+    }
+
+    func trialLength(_ planId: String) -> String? {
+        guard let intro = package(for: planId)?.storeProduct.introductoryDiscount else { return nil }
+        let value = intro.subscriptionPeriod.value
+        switch intro.subscriptionPeriod.unit {
+        case .day: return value == 7 ? "1-week" : "\(value)-day"
+        case .week: return value == 1 ? "1-week" : "\(value)-week"
+        case .month: return "\(value)-month"
+        case .year: return "\(value)-year"
+        @unknown default: return nil
         }
     }
 
-    func refreshEntitlements() async {
-        if let info = try? await Purchases.shared.customerInfo() {
-            applyEntitlements(info)
-        }
-    }
-
-    private func applyEntitlements(_ info: CustomerInfo) {
-        if info.entitlements["pro"]?.isActive == true {
-            entitledTier = .pro
-        } else if info.entitlements["growth"]?.isActive == true {
-            entitledTier = .growth
-        } else {
-            entitledTier = .scout
-        }
-    }
-
-    // MARK: - Purchases
-
-    /// Purchases the monthly subscription for a paid tier. Returns true on success.
-    @discardableResult
-    func purchase(tier: SubscriptionTier) async -> Bool {
-        guard tier != .scout else { return true }
-        guard let package = package(for: tier) else {
-            errorMessage = "That plan is unavailable right now. Please try again later."
+    /// Returns true when a purchase completed (not cancelled, not pending).
+    func purchase(planId: String) async -> Bool {
+        guard let pkg = package(for: planId) else {
+            errorMessage = "This plan isn't available from the App Store yet."
             return false
         }
-        return await purchase(package: package) != nil
-    }
-
-    /// Purchases the consumable credits pack and grants credits on success.
-    func purchaseCredits() async {
-        guard let package = creditsPackage else {
-            errorMessage = "Credits pack is unavailable right now. Please try again later."
-            return
-        }
-        if await purchase(package: package) != nil {
-            grantCredits(Self.creditsPerPack)
-            lastGrantedCredits = Self.creditsPerPack
-        }
-    }
-
-    /// Shared purchase pipeline. Returns customer info on success, nil on cancel/failure.
-    private func purchase(package: Package) async -> CustomerInfo? {
-        guard !isPurchasing else { return nil }
-        isPurchasing = true
-        defer { isPurchasing = false }
-
+        purchasingPlanId = planId
+        defer { purchasingPlanId = nil }
         do {
-            let result = try await Purchases.shared.purchase(package: package)
-            guard !result.userCancelled else { return nil }
-            applyEntitlements(result.customerInfo)
-            return result.customerInfo
+            let result = try await Purchases.shared.purchase(package: pkg)
+            return !result.userCancelled
         } catch ErrorCode.purchaseCancelledError {
-            // User cancelled — not an error.
-            return nil
+            return false
         } catch ErrorCode.paymentPendingError {
-            errorMessage = "Your purchase is pending approval. It will activate once it completes."
-            return nil
+            errorMessage = "Your purchase is waiting for approval. We'll unlock your plan as soon as it's confirmed."
+            return false
         } catch {
-            errorMessage = "Purchase failed. Please try again."
-            print("[Store] Purchase failed: \(error.localizedDescription)")
-            return nil
+            errorMessage = "The purchase didn't go through. You haven't been charged."
+            return false
         }
     }
 
-    /// Restores previous purchases and re-applies entitlements.
-    func restore() async {
-        guard !isRestoring else { return }
+    func restore() async -> Bool {
         isRestoring = true
         defer { isRestoring = false }
         do {
             let info = try await Purchases.shared.restorePurchases()
-            applyEntitlements(info)
+            if info.entitlements.active.isEmpty {
+                errorMessage = "No active subscription was found for this Apple ID."
+                return false
+            }
+            return true
         } catch {
-            errorMessage = "Restore failed. Please try again."
-            print("[Store] Restore failed: \(error.localizedDescription)")
+            errorMessage = "Purchases couldn't be restored. Please try again."
+            return false
         }
-    }
-
-    // MARK: - Credits balance
-
-    /// Deducts credits if the balance allows it. Returns false when insufficient.
-    @discardableResult
-    func spendCredits(_ amount: Int) -> Bool {
-        guard amount > 0, creditsBalance >= amount else { return false }
-        creditsBalance -= amount
-        persistBalance()
-        return true
-    }
-
-    private func grantCredits(_ amount: Int) {
-        creditsBalance += amount
-        persistBalance()
-    }
-
-    private func persistBalance() {
-        UserDefaults.standard.set(creditsBalance, forKey: Self.creditsBalanceKey)
     }
 }

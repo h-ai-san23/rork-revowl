@@ -4,6 +4,12 @@
       "name": "iOS",
       "path": "ios",
       "framework": "swift"
+    },
+    {
+      "name": "Functions",
+      "path": "functions",
+      "framework": "cloudflare"
     }
-  ]
+  ],
+  "$schema": "https://rork.com/schema/rork.json"
 }
