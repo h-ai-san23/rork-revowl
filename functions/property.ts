@@ -1149,7 +1149,15 @@ export class Property extends DurableObject<Env> {
     this.assertBudget("Event discovery");
     const today = this.today();
     const end = addDays(today, horizonDays);
-    const { events, costUsd } = await discoverEvents(this.env, { city: p.city, region: p.region, country: p.country, start: today, end });
+    let discovered: Awaited<ReturnType<typeof discoverEvents>>;
+    try {
+      discovered = await discoverEvents(this.env, { city: p.city, region: p.region, country: p.country, start: today, end });
+    } catch (e) {
+      if (e instanceof HttpError) throw e;
+      console.warn("event discovery failed", e instanceof Error ? e.message : String(e));
+      throw new HttpError(502, "events_unavailable", "Event search isn't available right now. Please try again shortly.");
+    }
+    const { events, costUsd } = discovered;
     this.meter("event_discovery", 1, costUsd);
     let added = 0;
     for (const e of events) {

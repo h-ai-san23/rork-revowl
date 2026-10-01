@@ -37,15 +37,62 @@ final class RevOwlAIHotelRevenueUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter().wait(for: [exp], timeout: timeout), .completed, message)
     }
 
-    /// Taps the field's outer box near its top-right corner, away from the text line —
+    /// True when the element is on screen with a real, finite size and can receive a tap.
+    @MainActor
+    private func isTappable(_ e: XCUIElement) -> Bool {
+        guard e.exists else { return false }
+        let f = e.frame
+        guard !f.isNull, !f.isInfinite, f.width.isFinite, f.height.isFinite, f.width > 1, f.height > 1 else { return false }
+        return e.isHittable
+    }
+
+    /// Closes the keyboard if it's showing, using the Done bar when available.
+    @MainActor
+    private func dismissKeyboardIfShown() {
+        guard app.keyboards.firstMatch.exists else { return }
+        let done = app.buttons["keyboard.done"].firstMatch
+        if isTappable(done) {
+            done.tap()
+        } else if app.keyboards.buttons["Return"].exists, isTappable(app.keyboards.buttons["Return"]) {
+            app.keyboards.buttons["Return"].tap()
+        } else {
+            app.swipeDown()
+        }
+        _ = app.keyboards.firstMatch.waitForNonExistence(timeout: 3)
+    }
+
+    /// Scrolls until the element is visible and not covered by the keyboard.
+    @MainActor
+    private func reveal(_ e: XCUIElement, name: String) {
+        if isTappable(e) { return }
+        dismissKeyboardIfShown()
+        var tries = 0
+        while !isTappable(e) && tries < 6 {
+            app.swipeUp()
+            tries += 1
+        }
+        tries = 0
+        while !isTappable(e) && tries < 6 {
+            app.swipeDown()
+            tries += 1
+        }
+        XCTAssertTrue(isTappable(e), "\(name) should be visible and tappable")
+    }
+
+    /// Taps an element after confirming it's visible, so failures name the element.
+    @MainActor
+    private func tap(_ e: XCUIElement, _ name: String) {
+        reveal(e, name: name)
+        e.tap()
+    }
+
+    /// Taps the field's outer box near its right edge, away from the text line —
     /// the area that previously didn't open the keyboard. Falls back to a normal tap.
     @MainActor
     private func tapBoxPadding(id: String, field f: XCUIElement) {
         let box = app.descendants(matching: .any)["\(id).box"]
-        let frame = box.exists ? box.frame : .null
-        let valid = !frame.isNull && frame.width.isFinite && frame.height.isFinite && frame.width > 20 && frame.height > 20
-        if valid {
-            box.coordinate(withNormalizedOffset: CGVector(dx: 0.94, dy: 0.12)).tap()
+        if isTappable(box), box.frame.width > 20, box.frame.height > 20 {
+            box.coordinate(withNormalizedOffset: CGVector(dx: 0.94, dy: 0.15)).tap()
         } else {
             f.tap()
         }
@@ -54,6 +101,7 @@ final class RevOwlAIHotelRevenueUITests: XCTestCase {
     @MainActor
     private func tapAndType(_ id: String, _ text: String, viaPadding: Bool = true) {
         let f = field(id)
+        reveal(f, name: "Field \(id)")
         if viaPadding { tapBoxPadding(id: id, field: f) } else { f.tap() }
         waitFocused(f, "Tapping \(id) should focus it and bring up the keyboard")
         f.typeText(text)
@@ -81,7 +129,8 @@ final class RevOwlAIHotelRevenueUITests: XCTestCase {
     private func primary(timeout: TimeInterval = 20) {
         let button = app.buttons["step.primary"]
         waitEnabled(button, timeout: timeout)
-        button.tap()
+        if !isTappable(button) { dismissKeyboardIfShown() }
+        tap(button, "Continue button")
     }
 
     @MainActor
@@ -179,9 +228,14 @@ final class RevOwlAIHotelRevenueUITests: XCTestCase {
         tapAndType("field.country", "Portugal")
         tapAndType("field.address", "1 Harbour Road")
         tapAndType("field.phone", "5550100")
-        let done = app.buttons["keyboard.done"]
+        let done = app.buttons["keyboard.done"].firstMatch
         XCTAssertTrue(done.waitForExistence(timeout: 3), "Phone pad should have a Done button")
-        done.tap()
+        if isTappable(done) {
+            done.tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3), "Done should close the phone pad")
+        } else {
+            dismissKeyboardIfShown()
+        }
         primary()
         expectStep("Rooms")
         settle()

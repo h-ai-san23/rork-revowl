@@ -83,10 +83,16 @@ async function callOnce(env: Env, opts: ChatOptions): Promise<ChatResult> {
     console.warn("ai gateway error", res.status, opts.model, text.slice(0, 300));
     throw new HttpError(res.status === 429 ? 429 : 502, "ai_error", "Orev couldn't answer right now.");
   }
-  const data = JSON.parse(text) as {
+  let data: {
     choices?: { message?: { content?: string | null; tool_calls?: ToolCall[] } }[];
     usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number; gateway_cost?: number };
   };
+  try {
+    data = JSON.parse(text);
+  } catch {
+    console.warn("ai gateway returned non-JSON", opts.model, text.slice(0, 200));
+    throw new HttpError(502, "ai_error", "Orev couldn't answer right now.");
+  }
   const msg = data.choices?.[0]?.message;
   return {
     content: msg?.content ?? "",

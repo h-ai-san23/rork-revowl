@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import UIKit
 
@@ -74,16 +75,35 @@ extension UIApplication {
     }
 }
 
+/// A "Done" bar pinned just above the keyboard while it's open.
+/// Built with a safe-area inset rather than `.toolbar(placement: .keyboard)`, which on iOS 26
+/// emits "Invalid frame dimension" layout faults and sometimes fails to appear.
 private struct KeyboardDoneToolbar: ViewModifier {
+    @State private var isKeyboardVisible = false
+
     func body(content: Content) -> some View {
-        content.toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") { UIApplication.dismissKeyboard() }
-                    .fontWeight(.semibold)
-                    .accessibilityIdentifier("keyboard.done")
+        content
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if isKeyboardVisible {
+                    HStack {
+                        Spacer()
+                        Button("Done") { UIApplication.dismissKeyboard() }
+                            .fontWeight(.semibold)
+                            .buttonStyle(.glass)
+                            .frame(minHeight: 44)
+                            .accessibilityIdentifier("keyboard.done")
+                    }
+                    .padding(.horizontal, Metrics.margin)
+                    .padding(.vertical, 4)
+                    .transition(.opacity)
+                }
             }
-        }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                isKeyboardVisible = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                isKeyboardVisible = false
+            }
     }
 }
 

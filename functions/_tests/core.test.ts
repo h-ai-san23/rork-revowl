@@ -6,6 +6,7 @@ import { effectivePlan, highestPlan, orevAllowance, PLANS, planForProduct } from
 import { validatePublicUrl } from "../_lib/safe-fetch";
 import { addDays, todayIn } from "../_lib/util";
 import { nameSimilarity } from "../_lib/xotelo";
+import { normalizeEvents } from "../_lib/events";
 
 describe("hotel matching", () => {
   test("city words don't create matches", () => {
@@ -236,5 +237,33 @@ describe("dates", () => {
     expect(todayIn("Asia/Tokyo", now)).toBe("2026-10-01");
     expect(todayIn("America/Los_Angeles", now)).toBe("2026-09-30");
     expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
+  });
+});
+
+describe("event normalization", () => {
+  const range = { start: "2026-10-01", end: "2026-12-31" };
+  test("tolerates null, strings and wrong shapes", () => {
+    expect(normalizeEvents(null, range)).toEqual([]);
+    expect(normalizeEvents("nope", range)).toEqual([]);
+    expect(normalizeEvents({ events: "x" }, range)).toEqual([]);
+    expect(normalizeEvents([null, 4, "a", ["b"]], range)).toEqual([]);
+  });
+  test("keeps valid events with public sources, drops the rest", () => {
+    const out = normalizeEvents(
+      {
+        events: [
+          { title: "Boat Show", start_date: "2026-10-10", end_date: "2026-10-12", source_url: "https://example.com/show", category: "exhibition" },
+          { title: "No source", start_date: "2026-10-10" },
+          { title: "Private", start_date: "2026-10-10", source_url: "http://10.0.0.1/x" },
+          { title: "Out of range", start_date: "2027-03-01", source_url: "https://example.com/a" },
+          { title: "Boat Show", start_date: "2026-10-10", source_url: "https://example.com/dup" },
+          { title: 42, start_date: "2026-10-10", source_url: "https://example.com/b" },
+        ],
+      },
+      range,
+    );
+    expect(out.length).toBe(1);
+    expect(out[0].title).toBe("Boat Show");
+    expect(out[0].category).toBe("exhibition");
   });
 });

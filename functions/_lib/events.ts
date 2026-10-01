@@ -75,13 +75,25 @@ export async function discoverEvents(
       },
     ],
   });
-  const raw = parseModelJson<RawEvent[] | { events?: RawEvent[] }>(result.content);
-  const list = Array.isArray(raw) ? raw : raw?.events ?? [];
+  const cleaned = normalizeEvents(parseModelJson<unknown>(result.content), input);
+  const reach = await mapLimit(cleaned, 5, (e) => isReachable(e.sourceUrl));
+  return { events: cleaned.map((e, i) => ({ ...e, sourceReachable: reach[i] })), costUsd: result.costUsd };
+}
+
+/**
+ * Turns untrusted model output into clean events. Tolerates any shape (null items, strings,
+ * objects instead of arrays) and drops anything without a valid date range and public source URL.
+ */
+export function normalizeEvents(raw: unknown, input: { start: string; end: string }): Omit<DiscoveredEvent, "sourceReachable">[] {
+  const container = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as { events?: unknown }).events : raw;
+  const list: unknown[] = Array.isArray(container) ? container : [];
   const seen = new Set<string>();
   const cleaned: Omit<DiscoveredEvent, "sourceReachable">[] = [];
-  for (const e of list) {
+  for (const item of list) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const e = item as RawEvent;
     const title = typeof e.title === "string" ? e.title.trim().slice(0, 140) : "";
-    const start = e.start_date ?? "";
+    const start = typeof e.start_date === "string" ? e.start_date : "";
     const end = isIsoDate(e.end_date) ? e.end_date! : start;
     if (!title || !isIsoDate(start) || end < start || start > input.end || end < input.start) continue;
     let sourceUrl: string;
@@ -104,7 +116,7 @@ export async function discoverEvents(
       sourceTitle: typeof e.source_title === "string" ? e.source_title.slice(0, 160) : null,
       expectedAttendance: Number.isFinite(att) && att > 0 && att < 10_000_000 ? Math.round(att) : null,
     });
+    if (cleaned.length >= 25) break;
   }
-  const reach = await mapLimit(cleaned, 5, (e) => isReachable(e.sourceUrl));
-  return { events: cleaned.map((e, i) => ({ ...e, sourceReachable: reach[i] })), costUsd: result.costUsd };
+  return cleaned;
 }
