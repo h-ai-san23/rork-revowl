@@ -37,16 +37,29 @@ struct LabeledField: View {
     var prompt: String = ""
     var keyboard: UIKeyboardType = .default
     var axis: Axis = .horizontal
+    var capitalization: TextInputAutocapitalization = .words
     var note: FieldSourceNote?
+
+    private var fieldId: String {
+        "field." + label.lowercased().filter { $0.isLetter || $0.isNumber }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.subheadline.weight(.semibold)).foregroundStyle(Palette.inkSecondary)
-            TextField(prompt.isEmpty ? label : prompt, text: $text, axis: axis)
-                .keyboardType(keyboard)
-                .lineLimit(axis == .vertical ? 2...5 : 1...1)
-                .fieldBackground()
-                .accessibilityLabel(label)
+            Text(label)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Palette.inkSecondary)
+                .accessibilityHidden(true)
+            AppTextField(
+                placeholder: prompt.isEmpty ? label : prompt,
+                text: $text,
+                id: fieldId,
+                axis: axis,
+                keyboard: keyboard,
+                capitalization: capitalization,
+                submitLabel: axis == .vertical ? .return : .next,
+                accessibilityLabel: label
+            )
             if let note { note }
         }
     }

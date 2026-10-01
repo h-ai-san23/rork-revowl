@@ -45,7 +45,7 @@ struct ConfirmDetailsStep: View {
                     LabeledField(label: "Property type", text: $propertyType, prompt: "Hotel, B&B…", note: note(fields?.propertyType, current: propertyType))
                     LabeledField(label: "Official stars", text: $stars, prompt: "Optional", keyboard: .decimalPad, note: numberNote(fields?.starRating, current: stars))
                 }
-                LabeledField(label: "Short description", text: $summary, prompt: "Optional", axis: .vertical, note: note(fields?.description, current: summary))
+                LabeledField(label: "Short description", text: $summary, prompt: "Optional", axis: .vertical, capitalization: .sentences, note: note(fields?.description, current: summary))
             }
             .card()
 

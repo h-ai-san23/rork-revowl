@@ -27,7 +27,6 @@ struct PropertyStep: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var showInvite = false
     @State private var inviteCode = ""
-    @FocusState private var searchFocused: Bool
 
     private var canContinue: Bool { selected != nil || query.trimmed.count >= 2 }
 
@@ -43,16 +42,17 @@ struct PropertyStep: View {
             onPrimary: { Task { await create() } },
             onSecondary: secondary
         ) {
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass").foregroundStyle(Palette.inkTertiary)
-                TextField("Hotel name and city", text: $query)
-                    .textContentType(.organizationName)
-                    .submitLabel(.search)
-                    .focused($searchFocused)
-                    .onSubmit { scheduleSearch(immediate: true) }
-                if isSearching { ProgressView() }
-            }
-            .fieldBackground()
+            AppTextField(
+                placeholder: "Hotel name and city",
+                text: $query,
+                id: "property.search",
+                icon: "magnifyingglass",
+                contentType: .organizationName,
+                capitalization: .words,
+                submitLabel: .search,
+                isBusy: isSearching,
+                onSubmit: { scheduleSearch(immediate: true) }
+            )
             .onChange(of: query) { _, _ in
                 if selected?.name != query { selected = nil }
                 scheduleSearch(immediate: false)
@@ -67,7 +67,7 @@ struct PropertyStep: View {
                         Button {
                             selected = place
                             query = place.name
-                            searchFocused = false
+                            UIApplication.dismissKeyboard()
                         } label: {
                             PlaceRow(place: place, isSelected: false)
                                 .padding(.vertical, 10)
@@ -91,6 +91,8 @@ struct PropertyStep: View {
         .alert("Join a property", isPresented: $showInvite) {
             TextField("Invite code", text: $inviteCode)
                 .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("property.inviteCode")
             Button("Join") { Task { await join() } }
             Button("Cancel", role: .cancel) {}
         } message: {

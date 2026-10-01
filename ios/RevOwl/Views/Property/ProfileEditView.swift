@@ -19,16 +19,16 @@ struct ProfileEditView: View {
     var body: some View {
         Form {
             Section("Basics") {
-                TextField("Property name", text: $name)
-                TextField("Address", text: $address, axis: .vertical)
-                TextField("City", text: $city)
-                TextField("Country", text: $country)
-                TextField("Phone", text: $phone).keyboardType(.phonePad)
-                TextField("Website", text: $website).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
-                TextField("Property type", text: $propertyType)
+                TextField("Property name", text: $name).accessibilityIdentifier("profile.name")
+                TextField("Address", text: $address, axis: .vertical).accessibilityIdentifier("profile.address")
+                TextField("City", text: $city).accessibilityIdentifier("profile.city")
+                TextField("Country", text: $country).accessibilityIdentifier("profile.country")
+                TextField("Phone", text: $phone).keyboardType(.phonePad).accessibilityIdentifier("profile.phone")
+                TextField("Website", text: $website).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled().accessibilityIdentifier("profile.website")
+                TextField("Property type", text: $propertyType).accessibilityIdentifier("profile.type")
             }
             Section {
-                TextField("Sellable rooms", text: $rooms).keyboardType(.numberPad)
+                TextField("Sellable rooms", text: $rooms).keyboardType(.numberPad).accessibilityIdentifier("profile.rooms")
             } header: {
                 Text("Inventory")
             } footer: {
@@ -59,10 +59,13 @@ struct ProfileEditView: View {
         .scrollContentBackground(.hidden)
         .background(AppBackground())
         .navigationTitle("Details")
+        .keyboardDoneButton()
         .toolbar {
             if app.canEdit {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { Task { await save() } }.disabled(name.trimmed.isEmpty || isWorking)
+                    Button("Save") { Task { await save() } }
+                        .disabled(name.trimmed.isEmpty || isWorking)
+                        .accessibilityIdentifier("profile.save")
                 }
             }
         }

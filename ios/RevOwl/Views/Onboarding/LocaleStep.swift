@@ -65,6 +65,7 @@ struct LocaleFields: View {
                 .pickerStyle(.menu)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fieldBackground()
+                .accessibilityIdentifier("locale.currency")
             }
             VStack(alignment: .leading, spacing: 6) {
                 Text("Time zone").font(.subheadline.weight(.semibold)).foregroundStyle(Palette.inkSecondary)
@@ -79,6 +80,7 @@ struct LocaleFields: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Time zone, \(timeZone)")
+                .accessibilityIdentifier("locale.timeZone")
             }
         }
         .card()
@@ -108,7 +110,9 @@ struct TimeZonePickerSheet: View {
                         Spacer()
                         if zone == selection { Image(systemName: "checkmark").foregroundStyle(Palette.teal) }
                     }
+                    .contentShape(.rect)
                 }
+                .accessibilityIdentifier("tz.\(zone)")
             }
             .searchable(text: $search, prompt: "City or region")
             .navigationTitle("Time zone")

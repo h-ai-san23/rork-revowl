@@ -60,7 +60,10 @@ struct CalendarView: View {
                         app.ask("How might \(e.title) on \(Fmt.day(e.startDate)) affect my demand and pricing?")
                     }
                 }
-                Toggle("Show dismissed", isOn: $showDismissed).font(.subheadline).tint(Palette.teal)
+                Toggle("Show dismissed", isOn: $showDismissed)
+                    .font(.subheadline)
+                    .tint(Palette.teal)
+                    .accessibilityIdentifier("calendar.showDismissed")
                 if let infoText { InlineMessage(kind: .info, text: infoText) }
                 if let errorText { InlineMessage(kind: .error, text: errorText) }
             }
@@ -77,6 +80,7 @@ struct CalendarView: View {
                     }
                     .disabled(isDiscovering)
                     Button { showAdd = true } label: { Label("Add event", systemImage: "plus") }
+                        .accessibilityIdentifier("calendar.add")
                 }
             }
         }
@@ -103,7 +107,7 @@ struct CalendarView: View {
                             Capsule().fill(isSel ? Palette.onAccent.opacity(0.3) : Palette.hairline)
                                 .frame(width: 30, height: 4)
                                 .overlay(alignment: .leading) {
-                                    Capsule().fill(isSel ? Palette.onAccent : Palette.teal).frame(width: 30 * CGFloat(occ ?? 0), height: 4)
+                                    Capsule().fill(isSel ? Palette.onAccent : Palette.teal).frame(width: 30 * Self.barFraction(occ), height: 4)
                                 }
                         }
                         .foregroundStyle(isSel ? Palette.onAccent : Palette.ink)
@@ -119,6 +123,12 @@ struct CalendarView: View {
         }
         .scrollClipDisabled()
         .sensoryFeedback(.selection, trigger: selectedDate)
+    }
+
+    /// Occupancy as a 0...1 bar fraction; guards against missing, negative or overbooked values.
+    static func barFraction(_ occupancy: Double?) -> CGFloat {
+        guard let occupancy, occupancy.isFinite else { return 0 }
+        return CGFloat(min(1, max(0, occupancy)))
     }
 
     private func load() async {
@@ -266,6 +276,8 @@ private struct AddEventSheet: View {
             Form {
                 Section {
                     TextField("Event name", text: $title)
+                        .textInputAutocapitalization(.words)
+                        .accessibilityIdentifier("event.title")
                     DatePicker("Starts", selection: $start, displayedComponents: .date)
                     DatePicker("Ends", selection: $end, in: start..., displayedComponents: .date)
                     Picker("Type", selection: $category) {
@@ -274,8 +286,11 @@ private struct AddEventSheet: View {
                 }
                 Section {
                     TextField("Venue (optional)", text: $venue)
+                        .textInputAutocapitalization(.words)
+                        .accessibilityIdentifier("event.venue")
                     TextField("Source link (optional)", text: $source)
                         .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .accessibilityIdentifier("event.source")
                 } footer: {
                     Text("Events you add are marked confirmed.")
                 }
@@ -286,7 +301,9 @@ private struct AddEventSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { Task { await save() } }.disabled(title.trimmed.isEmpty || isWorking)
+                    Button("Save") { Task { await save() } }
+                        .disabled(title.trimmed.isEmpty || isWorking)
+                        .accessibilityIdentifier("event.save")
                 }
             }
         }

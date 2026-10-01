@@ -39,6 +39,7 @@ struct SignInStep: View {
                         }
                         .buttonStyle(SecondaryButtonStyle())
                         .disabled(isWorking)
+                        .accessibilityIdentifier("signin.device")
                         Text("Useful for testing or on simulators. The account is tied to this device and can't be recovered if the app is deleted.")
                             .font(.footnote)
                             .foregroundStyle(Palette.inkTertiary)

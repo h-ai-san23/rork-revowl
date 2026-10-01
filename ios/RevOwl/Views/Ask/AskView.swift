@@ -41,7 +41,9 @@ struct AskView: View {
                     if messages.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(starters, id: \.self) { q in
-                                Button(q) { send(q) }.buttonStyle(ChipButtonStyle())
+                                Button(q) { send(q) }
+                                    .buttonStyle(ChipButtonStyle())
+                                    .accessibilityIdentifier("ask.starter")
                             }
                         }
                     }
@@ -103,12 +105,19 @@ struct AskView: View {
             TextField("Ask about rates, pace, events…", text: $draft, axis: .vertical)
                 .lineLimit(1...5)
                 .focused($focused)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .frame(minHeight: 48)
-                .glassEffect(.regular, in: .rect(cornerRadius: 24))
                 .submitLabel(.send)
                 .onSubmit { send(draft) }
+                .accessibilityIdentifier("ask.input")
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                .background {
+                    // Taps in the padding around the text focus the field too.
+                    Color.clear
+                        .contentShape(.rect(cornerRadius: 24))
+                        .onTapGesture { focused = true }
+                }
+                .glassEffect(.regular, in: .rect(cornerRadius: 24))
             Button {
                 send(draft)
             } label: {
@@ -120,6 +129,7 @@ struct AskView: View {
             .tint(Palette.teal)
             .disabled(draft.trimmed.isEmpty || isThinking)
             .accessibilityLabel("Send")
+            .accessibilityIdentifier("ask.send")
         }
         .padding(.horizontal, Metrics.margin)
         .padding(.vertical, 8)
@@ -129,10 +139,13 @@ struct AskView: View {
         guard let id = app.propertyId, loadedFor != id else { return }
         loadedFor = id
         if let res: AskHistoryResponse = try? await app.api.get(app.path("/ask/history")) {
-            messages = res.items.suffix(12).flatMap { item in
+            let history = res.items.suffix(12).flatMap { item in
                 [ChatMessage(id: "\(item.id)-q", isUser: true, text: item.question),
                  ChatMessage(id: item.id, isUser: false, text: item.answer, mood: item.mood, evidence: item.evidence)]
             }
+            // A question may already be in flight (e.g. sent from Today); keep it after the history.
+            let known = Set(history.map(\.id))
+            messages = history + messages.filter { !known.contains($0.id) }
         }
         if let u: UsageInfo = try? await app.api.get(app.path("/usage")) {
             usage = AskUsage(used: u.orevAnswersUsed, allowed: u.orevAnswersAllowed)

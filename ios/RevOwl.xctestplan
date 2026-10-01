@@ -1,0 +1,37 @@
+{
+  "configurations" : [
+    {
+      "id" : "6F1B2C3D-4E5F-4A6B-8C7D-9E0F1A2B3C4D",
+      "name" : "Default",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:RevOwl.xcodeproj",
+      "identifier" : "105FC5792E9EAD3100EA8BCF",
+      "name" : "RevOwl"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:RevOwl.xcodeproj",
+        "identifier" : "105FC5882E9EAD3200EA8BCF",
+        "name" : "RevOwlTests"
+      }
+    },
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:RevOwl.xcodeproj",
+        "identifier" : "105FC5922E9EAD3200EA8BCF",
+        "name" : "RevOwlUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

@@ -48,6 +48,7 @@ struct StepScaffold<Content: View>: View {
             .padding(.bottom, 24)
         }
         .scrollDismissesKeyboard(.interactively)
+        .keyboardDoneButton()
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 6) {
                 Button(action: onPrimary) {
@@ -60,6 +61,7 @@ struct StepScaffold<Content: View>: View {
                 .buttonStyle(PrimaryButtonStyle())
                 .disabled(!primaryEnabled || isWorking)
                 .sensoryFeedback(.impact(weight: .light), trigger: isWorking)
+                .accessibilityIdentifier("step.primary")
 
                 if let secondaryTitle, let onSecondary {
                     Button(secondaryTitle, action: onSecondary)
@@ -67,6 +69,7 @@ struct StepScaffold<Content: View>: View {
                         .foregroundStyle(Palette.teal)
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .disabled(isWorking)
+                        .accessibilityIdentifier("step.secondary")
                 }
             }
             .padding(.horizontal, Metrics.margin)

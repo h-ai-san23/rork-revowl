@@ -18,19 +18,22 @@ struct MarketView: View {
                 OrevBubble(state: orevState, title: headline, message: subline, size: 72)
                 if let m = market {
                     providerNote(m)
-                    if !pricedDays.isEmpty {
+                    if pricedDays.isEmpty {
+                        emptyState(m)
+                    } else {
                         chart(m)
+                    }
+                    if !m.days.isEmpty {
                         SectionHeader(title: "By stay date", subtitle: "Lowest public price per night, 2 adults. Tap a date for details or to enter a rate.")
                         VStack(spacing: 0) {
                             ForEach(m.days) { day in
                                 Button { selectedDay = day } label: { MarketDayRow(day: day, currency: m.currency) }
                                     .buttonStyle(.plain)
+                                    .accessibilityIdentifier("market.day")
                                 if day.id != m.days.last?.id { Divider().overlay(Palette.hairline) }
                             }
                         }
                         .card(padding: 8)
-                    } else {
-                        emptyState(m)
                     }
                     competitorsCard(m)
                 }
@@ -273,8 +276,9 @@ private struct MarketDaySheet: View {
                                 Button {
                                     editing = h.id
                                     rateText = cell.map { String(format: "%.0f", $0.rate) } ?? ""
-                                } label: { Image(systemName: "pencil").frame(width: 36, height: 36) }
+                                } label: { Image(systemName: "pencil").frame(width: 44, height: 44) }
                                 .buttonStyle(.borderless)
+                                .accessibilityIdentifier("market.editRate")
                                 .accessibilityLabel("Enter rate for \(h.name)")
                             }
                         }
@@ -288,9 +292,11 @@ private struct MarketDaySheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .alert("Enter rate", isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })) {
-                TextField("Rate in \(market.currency)", text: $rateText).keyboardType(.decimalPad)
-                Button("Save") { Task { await save() } }
-                Button("Remove manual rate", role: .destructive) { Task { await save(remove: true) } }
+                TextField("Rate in \(market.currency)", text: $rateText)
+                    .keyboardType(.decimalPad)
+                    .accessibilityIdentifier("market.rateInput")
+                Button("Save") { let h = editing; Task { await save(hotel: h) } }
+                Button("Remove manual rate", role: .destructive) { let h = editing; Task { await save(hotel: h, remove: true) } }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("Lowest rate for one night, 2 adults.")
@@ -298,11 +304,18 @@ private struct MarketDaySheet: View {
         }
     }
 
-    private func save(remove: Bool = false) async {
-        guard let hotel = editing else { return }
+    /// `hotel` is captured when the alert button is tapped: the alert clears `editing`
+    /// as it dismisses, before this async save runs.
+    private func save(hotel: String?, remove: Bool = false) async {
+        guard let hotel else { return }
         editing = nil
+        let parsed = Fmt.parseNumber(rateText)
+        if !remove && (parsed ?? 0) <= 0 {
+            errorText = "Enter a rate greater than zero."
+            return
+        }
         do {
-            let rate: JSONValue = remove ? .null : .from(Fmt.parseNumber(rateText))
+            let rate: JSONValue = remove ? .null : .from(parsed)
             let _: OKResponse = try await app.api.post(app.path("/market/manual-rate"), json: ["hotel": .string(hotel), "stayDate": .string(day.stayDate), "rate": rate])
             app.dataChanged()
             onChange()

@@ -46,6 +46,7 @@ struct DataImportPanel: View {
                     }
                     .buttonStyle(SecondaryButtonStyle())
                     .disabled(isWorking)
+                    .accessibilityIdentifier("data.chooseCSV")
                 }
             }
             .card()
@@ -57,6 +58,7 @@ struct DataImportPanel: View {
                     .font(.subheadline).foregroundStyle(Palette.inkSecondary)
                 Button("Add a day") { showManual = true }
                     .buttonStyle(SecondaryButtonStyle())
+                    .accessibilityIdentifier("data.addDay")
             }
             .card()
 
@@ -73,6 +75,7 @@ struct DataImportPanel: View {
                         .fixedSize(horizontal: false, vertical: true)
                     Button("Load sample data") { Task { await loadSample() } }
                         .buttonStyle(SecondaryButtonStyle())
+                        .accessibilityIdentifier("data.loadSample")
                         .disabled(isWorking)
                 }
                 .card(fill: Palette.surfaceRaised)
@@ -234,9 +237,24 @@ struct ManualEntrySheet: View {
                     }
                 }
                 Section {
-                    TextField("Rooms sold", text: $roomsSold).keyboardType(.numberPad)
-                    TextField("Room revenue (\(app.currency))", text: $revenue).keyboardType(.decimalPad)
-                    TextField("Rooms available", text: $available).keyboardType(.numberPad)
+                    LabeledContent("Rooms sold") {
+                        TextField("Required", text: $roomsSold)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .accessibilityIdentifier("manual.roomsSold")
+                    }
+                    LabeledContent("Room revenue (\(app.currency))") {
+                        TextField("Optional", text: $revenue)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .accessibilityIdentifier("manual.revenue")
+                    }
+                    LabeledContent("Rooms available") {
+                        TextField("Room count", text: $available)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .accessibilityIdentifier("manual.available")
+                    }
                 } footer: {
                     Text("Room revenue is optional, but without it ADR and RevPAR can't be calculated. Rooms available defaults to your room count.")
                 }
@@ -246,11 +264,13 @@ struct ManualEntrySheet: View {
             }
             .navigationTitle("Add a day")
             .navigationBarTitleDisplayMode(.inline)
+            .keyboardDoneButton()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { Task { await save() } }
                         .disabled(Int(roomsSold.trimmed) == nil || isWorking)
+                        .accessibilityIdentifier("manual.save")
                 }
             }
             .onAppear {

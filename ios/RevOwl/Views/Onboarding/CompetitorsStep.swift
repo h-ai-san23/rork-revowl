@@ -107,13 +107,19 @@ struct CompetitorsStep: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Add by name").font(.headline).foregroundStyle(Palette.ink)
                 HStack {
-                    TextField("Competitor name", text: $manualName)
-                        .submitLabel(.done)
-                        .onSubmit { Task { await addManual() } }
-                        .fieldBackground()
+                    AppTextField(
+                        placeholder: "Competitor name",
+                        text: $manualName,
+                        id: "competitors.manualName",
+                        capitalization: .words,
+                        submitLabel: .done,
+                        onSubmit: { Task { await addManual() } }
+                    )
                     Button("Add") { Task { await addManual() } }
                         .buttonStyle(.glass)
+                        .frame(minHeight: 44)
                         .disabled(manualName.trimmed.count < 2 || isWorking)
+                        .accessibilityIdentifier("competitors.add")
                 }
                 Text("Hotels added by name have no automatic rates — you can enter them yourself.")
                     .font(.caption).foregroundStyle(Palette.inkTertiary)

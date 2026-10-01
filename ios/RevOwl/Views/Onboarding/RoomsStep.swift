@@ -27,20 +27,26 @@ struct RoomsStep: View {
                     }
                     .buttonStyle(.glass)
                     .accessibilityLabel("Fewer rooms")
+                    .accessibilityIdentifier("rooms.minus")
 
-                    TextField("0", text: $rooms)
-                        .keyboardType(.numberPad)
-                        .font(.system(.largeTitle, design: .serif, weight: .bold))
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(Palette.ink)
-                        .frame(maxWidth: .infinity)
-                        .accessibilityLabel("Number of rooms")
+                    AppTextField(
+                        placeholder: "0",
+                        text: $rooms,
+                        id: "rooms.count",
+                        keyboard: .numberPad,
+                        font: .system(.largeTitle, design: .serif, weight: .bold),
+                        alignment: .center,
+                        accessibilityLabel: "Number of rooms"
+                    )
+                    .foregroundStyle(Palette.ink)
+                    .frame(maxWidth: .infinity)
 
                     Button { adjust(1) } label: {
                         Image(systemName: "plus").font(.title3.weight(.semibold)).frame(width: 52, height: 52)
                     }
                     .buttonStyle(.glass)
                     .accessibilityLabel("More rooms")
+                    .accessibilityIdentifier("rooms.plus")
                 }
                 Text("rooms").font(.subheadline).foregroundStyle(Palette.inkTertiary)
             }

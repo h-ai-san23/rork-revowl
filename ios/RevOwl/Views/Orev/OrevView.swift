@@ -10,7 +10,7 @@ struct OrevView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var animates: Bool { isAnimated && !reduceMotion }
+    private var animates: Bool { isAnimated && !reduceMotion && !LaunchFlags.stillOrev }
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !animates)) { timeline in

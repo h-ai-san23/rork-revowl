@@ -18,17 +18,19 @@ struct WebsiteStep: View {
             onPrimary: { Task { await extract() } },
             onSecondary: { app.goTo(.confirm) }
         ) {
-            HStack(spacing: 10) {
-                Image(systemName: "globe").foregroundStyle(Palette.inkTertiary)
-                TextField("yourhotel.com", text: $url)
-                    .keyboardType(.URL)
-                    .textContentType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .submitLabel(.go)
-                    .onSubmit { Task { await extract() } }
-            }
-            .fieldBackground()
+            AppTextField(
+                placeholder: "yourhotel.com",
+                text: $url,
+                id: "website.url",
+                icon: "globe",
+                keyboard: .URL,
+                contentType: .URL,
+                capitalization: .never,
+                autocorrect: false,
+                submitLabel: .go,
+                accessibilityLabel: "Website address",
+                onSubmit: { Task { await extract() } }
+            )
 
             if isWorking {
                 InlineMessage(kind: .info, text: "Reading your website. This can take up to 30 seconds.")

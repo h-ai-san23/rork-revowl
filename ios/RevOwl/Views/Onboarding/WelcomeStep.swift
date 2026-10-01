@@ -54,6 +54,7 @@ struct WelcomeStep: View {
         .safeAreaInset(edge: .bottom) {
             Button("Get started") { app.goTo(.signIn) }
                 .buttonStyle(PrimaryButtonStyle())
+                .accessibilityIdentifier("welcome.start")
                 .padding(.horizontal, Metrics.margin)
                 .padding(.bottom, 8)
         }

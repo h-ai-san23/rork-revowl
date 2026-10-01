@@ -48,6 +48,7 @@ struct GoalsStep: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(on ? .isSelected : [])
+                    .accessibilityIdentifier("goal.\(goal.id)")
                 }
             }
             .sensoryFeedback(.selection, trigger: selected)

@@ -112,13 +112,22 @@ struct CompetitorManagerView: View {
         Section("Add") {
             HStack {
                 TextField("Competitor name", text: $manualName)
+                    .textInputAutocapitalization(.words)
+                    .submitLabel(.done)
+                    .onSubmit { Task { await addManual() } }
+                    .accessibilityIdentifier("manageCompetitors.name")
+                // Borderless so tapping the text field focuses it instead of firing this button
+                // (a default-style Button inside a List row captures taps on the whole row).
                 Button("Add") { Task { await addManual() } }
+                    .buttonStyle(.borderless)
                     .disabled(manualName.trimmed.count < 2 || isWorking)
+                    .accessibilityIdentifier("manageCompetitors.add")
             }
             Button("Suggest nearby hotels", systemImage: "location.magnifyingglass") {
                 showNearby = true
                 Task { await loadNearby() }
             }
+            .accessibilityIdentifier("manageCompetitors.suggest")
         }
     }
 

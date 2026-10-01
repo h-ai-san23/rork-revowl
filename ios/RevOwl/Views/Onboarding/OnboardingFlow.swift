@@ -7,20 +7,26 @@ struct OnboardingFlow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(spacing: 0) {
-            if app.onboardingStep.isServerStep {
-                OnboardingHeader()
+        // A navigation container (bar hidden) is required for the keyboard "Done" toolbar
+        // to appear above number and phone pads during setup.
+        NavigationStack {
+            VStack(spacing: 0) {
+                if app.onboardingStep.isServerStep {
+                    OnboardingHeader()
+                }
+                stepView
+                    .id(app.onboardingStep)
+                    .transition(reduceMotion ? .opacity : .asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .opacity
+                    ))
+                    .frame(maxWidth: 640)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            stepView
-                .id(app.onboardingStep)
-                .transition(reduceMotion ? .opacity : .asymmetric(
-                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                    removal: .opacity
-                ))
-                .frame(maxWidth: 640)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(AppBackground())
+            .toolbar(.hidden, for: .navigationBar)
+            .animation(.smooth(duration: 0.35), value: app.onboardingStep)
         }
-        .animation(.smooth(duration: 0.35), value: app.onboardingStep)
     }
 
     @ViewBuilder
@@ -71,6 +77,7 @@ private struct OnboardingHeader: View {
                     }
                     .buttonStyle(.glass)
                     .accessibilityLabel("Back to \(previous.shortTitle)")
+                    .accessibilityIdentifier("onboarding.back")
                 } else {
                     Color.clear.frame(width: 44, height: 44)
                 }
@@ -78,6 +85,7 @@ private struct OnboardingHeader: View {
                 Text(stepLabel)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Palette.inkSecondary)
+                    .accessibilityIdentifier("onboarding.stepLabel")
                 Spacer()
                 Menu {
                     if (app.me?.properties.count ?? 0) > 1 {
@@ -94,6 +102,7 @@ private struct OnboardingHeader: View {
                 }
                 .buttonStyle(.glass)
                 .accessibilityLabel("More options")
+                .accessibilityIdentifier("onboarding.menu")
             }
             ProgressView(value: progress)
                 .tint(Palette.teal)
